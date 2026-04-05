@@ -1,0 +1,127 @@
+import "dotenv/config";
+import { Command } from "commander";
+import { loadConfig, requireEnv, getDateRange, loadTokens } from "./config.js";
+import { fetchMergedPRs } from "./github.js";
+import { summarize } from "./summarize.js";
+import { buildDryRunOutput, buildDocument, writeOutput, defaultOutputPath } from "./output.js";
+
+const program = new Command();
+
+program
+  .name("ghd")
+  .description("Generate client-facing sprint update documents from GitHub PRs")
+  .version("1.0.0");
+
+// ─── ghd setup ───────────────────────────────────────────────────────────────
+program
+  .command("setup")
+  .description("Interactive setup — configure repos and API keys")
+  .action(async () => {
+    const { main } = await import("./setup.js");
+    await main();
+  });
+
+// ─── ghd list ────────────────────────────────────────────────────────────────
+program
+  .command("list")
+  .description("Show merged PRs and their details for a date range")
+  .option("--since <date>", "Start date (YYYY-MM-DD)")
+  .option("--until <date>", "End date (YYYY-MM-DD)")
+  .option("--config <path>", "Path to config file", "digest.config.json")
+  .action(async (opts: { since?: string; until?: string; config: string }) => {
+    const config = loadConfig(opts.config);
+    const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
+    const tokens = loadTokens(config.repos);
+
+    process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);
+
+    const digests = await fetchMergedPRs(config.repos, since, until, tokens);
+    const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
+
+    if (totalPRs === 0) {
+      console.log(`No merged PRs found between ${since} and ${until}.`);
+      return;
+    }
+
+    for (const digest of digests) {
+      const header = `${digest.displayName} (${digest.owner}/${digest.repo})`;
+      console.log(`\n${"─".repeat(header.length)}`);
+      console.log(header);
+      console.log(`${"─".repeat(header.length)}`);
+
+      if (digest.prs.length === 0) {
+        console.log("  No merged PRs in this period.\n");
+        continue;
+      }
+
+      for (const pr of digest.prs) {
+        console.log(`\n  #${pr.number} ${pr.title}`);
+        console.log(`  @${pr.author} · merged ${pr.mergedAt.split("T")[0]} · ${pr.url}`);
+
+        if (pr.labels.length > 0) {
+          console.log(`  Labels: ${pr.labels.join(", ")}`);
+        }
+
+        if (pr.body?.trim()) {
+          const preview = pr.body.trim().replace(/\r?\n/g, " ").slice(0, 200);
+          console.log(`  "${preview}${pr.body.trim().length > 200 ? "…" : ""}"`);
+        }
+
+        if (pr.commits.length > 0) {
+          console.log(`  Commits (${pr.commits.length}):`);
+          pr.commits.slice(0, 5).forEach((c) => console.log(`    ${c.sha}  ${c.message}`));
+          if (pr.commits.length > 5) console.log(`    … and ${pr.commits.length - 5} more`);
+        }
+
+        if (pr.files.length > 0) {
+          console.log(`  Files (${pr.files.length}):`);
+          pr.files.slice(0, 8).forEach((f) => console.log(`    ${f.status.padEnd(10)} ${f.filename}`));
+          if (pr.files.length > 8) console.log(`    … and ${pr.files.length - 8} more`);
+        }
+      }
+    }
+
+    console.log(`\n${"─".repeat(40)}`);
+    console.log(`Total: ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} across ${digests.filter((d) => d.prs.length > 0).length} repo${digests.filter((d) => d.prs.length > 0).length !== 1 ? "s" : ""}\n`);
+  });
+
+// ─── ghd run ─────────────────────────────────────────────────────────────────
+program
+  .command("run")
+  .description("Generate an AI sprint summary for a date range")
+  .option("--since <date>", "Start date (YYYY-MM-DD)")
+  .option("--until <date>", "End date (YYYY-MM-DD)")
+  .option("--output <path>", "Output file path")
+  .option("--config <path>", "Path to config file", "digest.config.json")
+  .action(async (opts: { since?: string; until?: string; output?: string; config: string }) => {
+    const config = loadConfig(opts.config);
+    const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
+    const tokens = loadTokens(config.repos);
+
+    process.stderr.write(`\nGitHub Digest — ${since} to ${until}\n`);
+    process.stderr.write(`Repos: ${config.repos.map((r) => r.displayName).join(", ")}\n\n`);
+
+    const digests = await fetchMergedPRs(config.repos, since, until, tokens);
+
+    const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
+    if (totalPRs === 0) {
+      process.stderr.write("\nNo merged PRs found in this period. Nothing to summarize.\n");
+      process.exit(0);
+    }
+
+    process.stderr.write(`\nFound ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} total. Summarizing...\n`);
+
+    const openrouterKey = requireEnv("OPENROUTER_API_KEY");
+    const model = config.model ?? "anthropic/claude-sonnet-4-5";
+
+    const summary = await summarize(digests, since, until, openrouterKey, model);
+    const document = buildDocument(summary, since, until);
+
+    const outputPath = opts.output ?? defaultOutputPath(since, until, config.output.dir);
+    const writtenPath = writeOutput(document, outputPath);
+
+    process.stderr.write(`\nWritten to: ${writtenPath}\n\n`);
+    console.log(document);
+  });
+
+program.parse(process.argv);

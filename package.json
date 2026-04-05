@@ -1,0 +1,25 @@
+{
+  "name": "github-digest",
+  "version": "1.0.0",
+  "description": "Generate client-facing sprint update documents from GitHub PRs",
+  "type": "module",
+  "bin": {
+    "ghd": "./bin/ghd"
+  },
+  "scripts": {
+    "setup": "tsx src/setup.ts",
+    "digest": "tsx src/index.ts run"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.3.2",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "octokit": "^4.0.2",
+    "openai": "^4.97.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

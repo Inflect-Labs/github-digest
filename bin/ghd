@@ -1,0 +1,14 @@
+#!/bin/sh
+# Resolve symlinks (handles relative symlinks from npm link)
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+  LINK_DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
+  SCRIPT="$(readlink "$SCRIPT")"
+  case "$SCRIPT" in
+    /*) ;;
+    *) SCRIPT="$LINK_DIR/$SCRIPT" ;;
+  esac
+done
+# Use -P to follow any remaining directory symlinks to the real path
+DIR="$(cd -P "$(dirname "$SCRIPT")/.." && pwd)"
+"$DIR/node_modules/.bin/tsx" "$DIR/src/index.ts" "$@"

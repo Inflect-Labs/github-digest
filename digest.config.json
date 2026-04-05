@@ -1,0 +1,21 @@
+{
+  "repos": [
+    {
+      "owner": "example-org",
+      "repo": "frontend",
+      "displayName": "Web App"
+    },
+    {
+      "owner": "example-org",
+      "repo": "backend",
+      "displayName": "API"
+    }
+  ],
+  "defaults": {
+    "daysBack": 14
+  },
+  "output": {
+    "dir": "./output"
+  },
+  "model": "anthropic/claude-sonnet-4-5"
+}
