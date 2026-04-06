@@ -59,8 +59,18 @@ export async function checkForUpdate(): Promise<void> {
 export async function uninstall(): Promise<void> {
   const { confirm } = await import("@inquirer/prompts");
 
+  // Resolve the actual binary path (handles npm link, nvm, custom installs)
+  let binaryPath = "/usr/local/bin/ghd";
+  try {
+    binaryPath = execSync("which ghd", { encoding: "utf-8" }).trim();
+  } catch {
+    // fall back to default
+  }
+
+  const installDir = join(homedir(), ".github-digest");
+
   const confirmed = await confirm({
-    message: `This will remove ghd from /usr/local/bin and ${homedir()}/.github-digest. Continue?`,
+    message: `This will remove ghd from ${binaryPath} and ${installDir}. Continue?`,
     default: false,
   });
 
@@ -69,20 +79,22 @@ export async function uninstall(): Promise<void> {
     return;
   }
 
+  // Remove binary
   try {
-    execSync("rm -f /usr/local/bin/ghd");
+    execSync(`rm -f ${JSON.stringify(binaryPath)}`);
   } catch {
     try {
-      execSync("sudo rm -f /usr/local/bin/ghd");
+      execSync(`sudo rm -f ${JSON.stringify(binaryPath)}`);
     } catch {
-      console.error("Could not remove /usr/local/bin/ghd — you may need to delete it manually.");
+      console.error(`Could not remove ${binaryPath} — you may need to delete it manually.`);
     }
   }
 
+  // Remove install directory (only present for curl installs, not npm link)
   try {
-    execSync(`rm -rf ${JSON.stringify(join(homedir(), ".github-digest"))}`);
+    execSync(`rm -rf ${JSON.stringify(installDir)}`);
   } catch {
-    console.error(`Could not remove ${homedir()}/.github-digest — you may need to delete it manually.`);
+    console.error(`Could not remove ${installDir} — you may need to delete it manually.`);
   }
 
   console.log("ghd uninstalled successfully.");
