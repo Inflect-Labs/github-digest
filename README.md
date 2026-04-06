@@ -83,15 +83,22 @@ Default model is `anthropic/claude-sonnet-4-5` via OpenRouter. Change the `model
 
 ## Releasing a New Version
 
-The install script always pulls the latest GitHub Release. To ship a new version:
+Use the release script — it bumps `package.json`, commits, pushes, creates the GitHub Release, and triggers a Vercel deploy in one command:
 
-1. Bump the version in `package.json`
-2. Commit: `git commit -m "chore: bump version to vX.Y.Z"`
-3. Push to main: `git push origin main`
-4. Create a GitHub Release:
-   ```bash
-   gh release create vX.Y.Z --title "vX.Y.Z" --notes "What changed"
-   ```
-   GitHub automatically attaches a source tarball. The install script picks it up on the next install.
+```bash
+npm run release -- 1.0.8 "What changed in this release"
+```
 
-> You can also ask Claude: "create a GitHub release for vX.Y.Z" and it will run the `gh release create` command for you.
+Or run the script directly:
+
+```bash
+./scripts/release.sh 1.0.8 "What changed in this release"
+```
+
+**What it does:**
+1. Bumps `package.json` version (the single source of truth)
+2. Commits `chore: release vX.Y.Z` and pushes to `main`
+3. Creates a GitHub Release with the provided notes
+4. Vercel auto-deploys from the `main` push
+
+> You can also ask Claude: "release version 1.0.8 with notes: ..." and it will run the script for you.
