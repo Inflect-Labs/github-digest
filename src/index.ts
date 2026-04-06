@@ -1,12 +1,15 @@
-import "dotenv/config";
 import { readFileSync } from "fs";
 import { execSync } from "child_process";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { config as loadEnv } from "dotenv";
 import { Command } from "commander";
+import { ENV_PATH } from "./paths.js";
 import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange, parseLast } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
 import { checkForUpdate, uninstall } from "./update.js";
+
+loadEnv({ path: ENV_PATH });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8")) as { version: string };
@@ -35,9 +38,8 @@ const reposCmd = program
 reposCmd
   .command("list", { isDefault: true })
   .description("Show all configured repos")
-  .option("--config <path>", "Path to config file", "digest.config.json")
-  .action((opts: { config: string }) => {
-    const config = loadConfig(opts.config);
+  .action(() => {
+    const config = loadConfig();
     console.log(`\nConfigured repos (${config.repos.length}):\n`);
     config.repos.forEach((r, i) => {
       console.log(`  ${i + 1}. ${r.owner}/${r.repo}`);
@@ -56,9 +58,8 @@ reposCmd
 reposCmd
   .command("remove")
   .description("Remove one or more configured repos")
-  .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { config: string }) => {
-    const config = loadConfig(opts.config);
+  .action(async () => {
+    const config = loadConfig();
     const { checkbox } = await import("@inquirer/prompts");
 
     const toRemove = await checkbox({
@@ -75,7 +76,7 @@ reposCmd
     }
 
     config.repos = config.repos.filter((r) => !toRemove.includes(`${r.owner}/${r.repo}`));
-    saveConfig(config, opts.config);
+    saveConfig(config);
     console.log(`\nRemoved: ${toRemove.join(", ")}`);
     console.log(`Remaining repos: ${config.repos.length}\n`);
   });
@@ -89,9 +90,8 @@ program
   .option("--last <period>", "Shorthand period: day, 3d, week, fortnight, month")
   .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
   .option("--no-copy", "Print only, do not copy to clipboard")
-  .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; last?: string; repo?: string; copy: boolean; config: string }) => {
-    const config = loadConfig(opts.config);
+  .action(async (opts: { since?: string; until?: string; last?: string; repo?: string; copy: boolean }) => {
+    const config = loadConfig();
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const daysBack = opts.last ? parseLast(opts.last) : config.defaults.daysBack;
     const { since, until } = getDateRange(opts.since, opts.until, daysBack);
