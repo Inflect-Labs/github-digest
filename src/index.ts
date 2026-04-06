@@ -1,4 +1,7 @@
 import "dotenv/config";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { Command } from "commander";
 import { loadConfig, requireEnv, getDateRange, loadTokens } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
@@ -6,12 +9,15 @@ import { summarize } from "./summarize.js";
 import { buildDryRunOutput, buildDocument, writeOutput, defaultOutputPath } from "./output.js";
 import { checkForUpdate, uninstall } from "./update.js";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8")) as { version: string };
+
 const program = new Command();
 
 program
   .name("ghd")
   .description("Generate client-facing sprint update documents from GitHub PRs")
-  .version("1.0.0");
+  .version(version);
 
 // ─── ghd setup ───────────────────────────────────────────────────────────────
 program
