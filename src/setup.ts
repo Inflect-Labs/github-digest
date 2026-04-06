@@ -173,7 +173,7 @@ async function writeFiles(
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}=${v}`);
   envLines.push(`OPENROUTER_API_KEY=${openrouterKey}`);
-  writeFileSync(ENV_PATH, envLines.join("\n") + "\n", "utf-8");
+  writeFileSync(ENV_PATH, envLines.join("\n") + "\n", { encoding: "utf-8", mode: 0o600 });
 
   // Write digest.config.json
   const config: DigestConfig = {
