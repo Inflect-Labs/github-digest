@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { readFileSync } from "fs";
+import { execSync } from "child_process";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
@@ -74,13 +75,14 @@ reposCmd
 // ─── ghd list ────────────────────────────────────────────────────────────────
 program
   .command("list")
-  .description("Show merged PRs for a date range")
+  .description("Show merged PRs for a date range (copies to clipboard by default)")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
   .option("--last <period>", "Shorthand period: day, 3d, week, fortnight, month")
   .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
+  .option("--no-copy", "Print only, do not copy to clipboard")
   .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; last?: string; repo?: string; config: string }) => {
+  .action(async (opts: { since?: string; until?: string; last?: string; repo?: string; copy: boolean; config: string }) => {
     const config = loadConfig(opts.config);
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const daysBack = opts.last ? parseLast(opts.last) : config.defaults.daysBack;
@@ -97,47 +99,73 @@ program
       return;
     }
 
+    const lines: string[] = [];
+
     for (const digest of digests) {
       const header = `${digest.owner}/${digest.repo}`;
-      console.log(`\n${"─".repeat(header.length)}`);
-      console.log(header);
-      console.log(`${"─".repeat(header.length)}`);
+      lines.push(`\n${"─".repeat(header.length)}`);
+      lines.push(header);
+      lines.push(`${"─".repeat(header.length)}`);
 
       if (digest.prs.length === 0) {
-        console.log("  No merged PRs in this period.\n");
+        lines.push("  No merged PRs in this period.\n");
         continue;
       }
 
       for (const pr of digest.prs) {
-        console.log(`\n  #${pr.number} ${pr.title}`);
-        console.log(`  @${pr.author} · merged ${pr.mergedAt.split("T")[0]} · ${pr.url}`);
+        lines.push(`\n  #${pr.number} ${pr.title}`);
+        lines.push(`  @${pr.author} · merged ${pr.mergedAt.split("T")[0]} · ${pr.url}`);
 
         if (pr.labels.length > 0) {
-          console.log(`  Labels: ${pr.labels.join(", ")}`);
+          lines.push(`  Labels: ${pr.labels.join(", ")}`);
         }
 
         if (pr.body?.trim()) {
-          const lines = pr.body.trim().split(/\r?\n/);
-          lines.forEach((line) => console.log(`  ${line}`));
+          pr.body.trim().split(/\r?\n/).forEach((line) => lines.push(`  ${line}`));
         }
 
         if (pr.commits.length > 0) {
-          console.log(`  Commits (${pr.commits.length}):`);
-          pr.commits.slice(0, 5).forEach((c) => console.log(`    ${c.sha}  ${c.message}`));
-          if (pr.commits.length > 5) console.log(`    … and ${pr.commits.length - 5} more`);
+          lines.push(`  Commits (${pr.commits.length}):`);
+          pr.commits.slice(0, 5).forEach((c) => lines.push(`    ${c.sha}  ${c.message}`));
+          if (pr.commits.length > 5) lines.push(`    … and ${pr.commits.length - 5} more`);
         }
 
         if (pr.files.length > 0) {
-          console.log(`  Files (${pr.files.length}):`);
-          pr.files.slice(0, 8).forEach((f) => console.log(`    ${f.status.padEnd(10)} ${f.filename}`));
-          if (pr.files.length > 8) console.log(`    … and ${pr.files.length - 8} more`);
+          lines.push(`  Files (${pr.files.length}):`);
+          pr.files.slice(0, 8).forEach((f) => lines.push(`    ${f.status.padEnd(10)} ${f.filename}`));
+          if (pr.files.length > 8) lines.push(`    … and ${pr.files.length - 8} more`);
         }
       }
     }
 
-    console.log(`\n${"─".repeat(40)}`);
-    console.log(`Total: ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} across ${digests.filter((d) => d.prs.length > 0).length} repo${digests.filter((d) => d.prs.length > 0).length !== 1 ? "s" : ""}\n`);
+    lines.push(`\n${"─".repeat(40)}`);
+    lines.push(`Total: ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} across ${digests.filter((d) => d.prs.length > 0).length} repo${digests.filter((d) => d.prs.length > 0).length !== 1 ? "s" : ""}`);
+
+    const output = lines.join("\n");
+    console.log(output);
+
+    if (opts.copy) {
+      const copied = copyToClipboard(output);
+      process.stderr.write(copied ? "\nCopied to clipboard.\n" : "\nCould not copy — pipe to pbcopy/xclip manually.\n");
+    }
   });
+
+function copyToClipboard(text: string): boolean {
+  try {
+    if (process.platform === "darwin") {
+      execSync("pbcopy", { input: text });
+    } else {
+      try {
+        execSync("xclip -selection clipboard", { input: text });
+      } catch {
+        execSync("xsel --clipboard --input", { input: text });
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ─── ghd uninstall ───────────────────────────────────────────────────────────
 program
