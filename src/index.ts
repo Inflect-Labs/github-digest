@@ -46,6 +46,14 @@ reposCmd
   });
 
 reposCmd
+  .command("add")
+  .description("Add one or more repos")
+  .action(async () => {
+    const { addRepos } = await import("./setup.js");
+    await addRepos();
+  });
+
+reposCmd
   .command("remove")
   .description("Remove one or more configured repos")
   .option("--config <path>", "Path to config file", "digest.config.json")
