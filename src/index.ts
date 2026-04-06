@@ -3,10 +3,8 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
-import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange, loadTokens } from "./config.js";
+import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
-import { summarize } from "./summarize.js";
-import { buildDryRunOutput, buildDocument, writeOutput, defaultOutputPath } from "./output.js";
 import { checkForUpdate, uninstall } from "./update.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -16,13 +14,13 @@ const program = new Command();
 
 program
   .name("ghd")
-  .description("Generate client-facing sprint update documents from GitHub PRs")
+  .description("Fetch and display merged PRs from your GitHub repos")
   .version(version);
 
 // ─── ghd setup ───────────────────────────────────────────────────────────────
 program
   .command("setup")
-  .description("Interactive setup — configure repos and API keys")
+  .description("Interactive setup — configure repos and GitHub token")
   .action(async () => {
     const { main } = await import("./setup.js");
     await main();
@@ -41,7 +39,7 @@ reposCmd
     const config = loadConfig(opts.config);
     console.log(`\nConfigured repos (${config.repos.length}):\n`);
     config.repos.forEach((r, i) => {
-      console.log(`  ${i + 1}. ${r.owner}/${r.repo}  [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`);
+      console.log(`  ${i + 1}. ${r.owner}/${r.repo}`);
     });
     console.log("");
   });
@@ -76,7 +74,7 @@ reposCmd
 // ─── ghd list ────────────────────────────────────────────────────────────────
 program
   .command("list")
-  .description("Show merged PRs and their details for a date range")
+  .description("Show merged PRs for a date range")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
   .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
@@ -85,11 +83,11 @@ program
     const config = loadConfig(opts.config);
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
-    const tokens = loadTokens(repos);
+    const token = requireEnv("GITHUB_TOKEN");
 
     process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);
 
-    const digests = await fetchMergedPRs(repos, since, until, tokens);
+    const digests = await fetchMergedPRs(repos, since, until, token);
     const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
 
     if (totalPRs === 0) {
@@ -98,7 +96,7 @@ program
     }
 
     for (const digest of digests) {
-      const header = `${digest.displayName} (${digest.owner}/${digest.repo})`;
+      const header = `${digest.owner}/${digest.repo}`;
       console.log(`\n${"─".repeat(header.length)}`);
       console.log(header);
       console.log(`${"─".repeat(header.length)}`);
@@ -137,47 +135,6 @@ program
 
     console.log(`\n${"─".repeat(40)}`);
     console.log(`Total: ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} across ${digests.filter((d) => d.prs.length > 0).length} repo${digests.filter((d) => d.prs.length > 0).length !== 1 ? "s" : ""}\n`);
-  });
-
-// ─── ghd run ─────────────────────────────────────────────────────────────────
-program
-  .command("run")
-  .description("Generate an AI sprint summary for a date range")
-  .option("--since <date>", "Start date (YYYY-MM-DD)")
-  .option("--until <date>", "End date (YYYY-MM-DD)")
-  .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
-  .option("--output <path>", "Output file path")
-  .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; repo?: string; output?: string; config: string }) => {
-    const config = loadConfig(opts.config);
-    const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
-    const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
-    const tokens = loadTokens(repos);
-
-    process.stderr.write(`\nGitHub Digest — ${since} to ${until}\n`);
-    process.stderr.write(`Repos: ${repos.map((r) => r.displayName).join(", ")}\n\n`);
-
-    const digests = await fetchMergedPRs(repos, since, until, tokens);
-
-    const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
-    if (totalPRs === 0) {
-      process.stderr.write("\nNo merged PRs found in this period. Nothing to summarize.\n");
-      process.exit(0);
-    }
-
-    process.stderr.write(`\nFound ${totalPRs} merged PR${totalPRs !== 1 ? "s" : ""} total. Summarizing...\n`);
-
-    const openrouterKey = requireEnv("OPENROUTER_API_KEY");
-    const model = config.model ?? "anthropic/claude-sonnet-4-5";
-
-    const summary = await summarize(digests, since, until, openrouterKey, model);
-    const document = buildDocument(summary, since, until);
-
-    const outputPath = opts.output ?? defaultOutputPath(since, until, config.output.dir);
-    const writtenPath = writeOutput(document, outputPath);
-
-    process.stderr.write(`\nWritten to: ${writtenPath}\n\n`);
-    console.log(document);
   });
 
 // ─── ghd uninstall ───────────────────────────────────────────────────────────
