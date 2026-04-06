@@ -1,6 +1,6 @@
 {
   "name": "github-digest",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Generate client-facing sprint update documents from GitHub PRs",
   "type": "module",
   "bin": {
