@@ -4,6 +4,7 @@ import { loadConfig, requireEnv, getDateRange, loadTokens } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
 import { summarize } from "./summarize.js";
 import { buildDryRunOutput, buildDocument, writeOutput, defaultOutputPath } from "./output.js";
+import { checkForUpdate, uninstall } from "./update.js";
 
 const program = new Command();
 
@@ -123,5 +124,19 @@ program
     process.stderr.write(`\nWritten to: ${writtenPath}\n\n`);
     console.log(document);
   });
+
+// ─── ghd uninstall ───────────────────────────────────────────────────────────
+program
+  .command("uninstall")
+  .description("Remove ghd from your system")
+  .action(async () => {
+    await uninstall();
+  });
+
+// ─── update check (skipped for uninstall/setup to avoid noise) ───────────────
+const command = process.argv[2];
+if (command !== "uninstall" && command !== "setup") {
+  await checkForUpdate();
+}
 
 program.parse(process.argv);
