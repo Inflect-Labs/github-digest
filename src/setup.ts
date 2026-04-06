@@ -16,7 +16,8 @@ export async function main() {
     : null;
 
   // --- OpenRouter Key ---
-  console.log("Step 1 of 2 — OpenRouter API key");
+  console.log("Step 1 of 2 — OpenRouter API key (optional)");
+  console.log("Required for AI summaries (ghd run). Skip if you only need ghd list.");
   console.log("Get your key at: https://openrouter.ai/keys\n");
 
   const existingOpenRouterKey = existingEnv["OPENROUTER_API_KEY"] ?? "";
@@ -95,8 +96,8 @@ export async function main() {
     if (!ownerTokenCache[owner]) {
       const envVarName = toEnvVarName(owner);
       console.log(`\n  New account/org detected: ${owner}`);
-      console.log(`  Create a fine-grained token at: https://github.com/settings/tokens/new`);
-      console.log(`  Set Resource owner to "${owner}", grant Read access to Pull requests & Metadata.\n`);
+      console.log(`  Create a classic token at: https://github.com/settings/tokens/new?scopes=repo`);
+      console.log(`  (Classic tokens work for org repos without needing org approval.)\n`);
 
       let token = await password({
         message: `  GitHub token for ${owner}:`,
@@ -154,10 +155,9 @@ export async function main() {
 }
 
 async function promptOpenRouterKey(): Promise<string> {
-  let key = await password({
-    message: "Paste your OpenRouter API key:",
+  const key = await password({
+    message: "Paste your OpenRouter API key (leave blank to skip):",
     mask: "*",
-    validate: (v) => v.trim().length > 0 || "Key cannot be empty",
   });
   return key.trim();
 }
@@ -168,11 +168,11 @@ async function writeFiles(
   repos: RepoConfig[],
   existingConfig: DigestConfig | null
 ) {
-  // Write .env — all tokens + openrouter key
+  // Write .env — all tokens + openrouter key (if set)
   const envLines = Object.entries(tokenMap)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}=${v}`);
-  envLines.push(`OPENROUTER_API_KEY=${openrouterKey}`);
+  if (openrouterKey) envLines.push(`OPENROUTER_API_KEY=${openrouterKey}`);
   writeFileSync(ENV_PATH, envLines.join("\n") + "\n", { encoding: "utf-8", mode: 0o600 });
 
   // Write digest.config.json
