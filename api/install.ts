@@ -24,7 +24,7 @@ fi
 # ── fetch latest release tarball URL ────────────────────────────────────────
 echo "Fetching latest release..."
 API_URL="https://api.github.com/repos/\${REPO}/releases/latest"
-TARBALL_URL=$(curl -fsSL "$API_URL" | grep '"tarball_url"' | sed 's/.*"tarball_url": "//;s/".*//')
+TARBALL_URL=$(curl -fsSL "$API_URL" | python3 -c "import sys,json; print(json.load(sys.stdin)['tarball_url'])" 2>/dev/null)
 
 if [ -z "$TARBALL_URL" ]; then
   echo "Error: could not fetch latest release from GitHub." >&2
