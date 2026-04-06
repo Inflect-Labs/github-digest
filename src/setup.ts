@@ -1,4 +1,4 @@
-import { input, password, confirm, select } from "@inquirer/prompts";
+import { password, confirm, select } from "@inquirer/prompts";
 import { writeFileSync, existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { Octokit } from "octokit";
@@ -146,13 +146,7 @@ export async function main() {
       if (skip) continue;
     }
 
-    const displayName = await input({
-      message: "  Display name (shown in the client summary):",
-      default: repoName,
-      validate: (v) => v.trim().length > 0 || "Display name cannot be empty",
-    });
-
-    repos.push({ owner, repo: repoName, displayName: displayName.trim(), tokenEnvVar: envVarName });
+    repos.push({ owner, repo: repoName, displayName: repoName, tokenEnvVar: envVarName });
     console.log("");
 
     addingRepos = await confirm({ message: "Add another repo?", default: true });
