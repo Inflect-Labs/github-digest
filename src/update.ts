@@ -5,7 +5,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const REPO = "Inflect-Labs/github-digest";
-const INSTALL_URL = "https://github-digest-amber.vercel.app/api/install";
+const INSTALL_URL = "https://github-digest-amber.vercel.app/install";
 
 function currentVersion(): string {
   const __dirname = dirname(fileURLToPath(import.meta.url));
