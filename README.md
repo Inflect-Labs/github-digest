@@ -5,7 +5,7 @@ Generate client-facing sprint update documents from GitHub PRs. Point it at your
 ## Installation
 
 ```sh
-curl -fsSL https://github-digest-amber.vercel.app/api/install | sh
+curl -fsSL https://github-digest-amber.vercel.app/install | sh
 ```
 
 Then run the setup wizard:
