@@ -2,6 +2,18 @@
 
 Generate client-facing sprint update documents from GitHub PRs. Point it at your repos, run it, get a polished markdown summary ready to share.
 
+## Installation
+
+```sh
+curl -fsSL https://github-digest-amber.vercel.app/api/install | sh
+```
+
+Then run the setup wizard:
+
+```sh
+ghd setup
+```
+
 ## Setup
 
 **1. Install dependencies**
