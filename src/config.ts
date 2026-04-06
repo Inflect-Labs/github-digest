@@ -1,15 +1,14 @@
 import { readFileSync, writeFileSync } from "fs";
-import { resolve } from "path";
 import { DigestConfig, RepoConfig } from "./types.js";
+import { CONFIG_PATH } from "./paths.js";
 
-export function loadConfig(configPath = "digest.config.json"): DigestConfig {
-  const fullPath = resolve(process.cwd(), configPath);
+export function loadConfig(): DigestConfig {
   let raw: string;
   try {
-    raw = readFileSync(fullPath, "utf-8");
+    raw = readFileSync(CONFIG_PATH, "utf-8");
   } catch {
-    console.error(`Error: Could not read config file at ${fullPath}`);
-    console.error(`Run 'ghd setup' to configure your repos.`);
+    console.error(`Error: No config found at ${CONFIG_PATH}`);
+    console.error(`Run 'ghd setup' to get started.`);
     process.exit(1);
   }
 
@@ -17,21 +16,20 @@ export function loadConfig(configPath = "digest.config.json"): DigestConfig {
   try {
     config = JSON.parse(raw);
   } catch {
-    console.error(`Error: digest.config.json is not valid JSON.`);
+    console.error(`Error: config.json is not valid JSON.`);
     process.exit(1);
   }
 
   if (!config.repos || config.repos.length === 0) {
-    console.error(`Error: digest.config.json must have at least one repo. Run 'ghd setup'.`);
+    console.error(`Error: No repos configured. Run 'ghd repos add'.`);
     process.exit(1);
   }
 
   return config;
 }
 
-export function saveConfig(config: DigestConfig, configPath = "digest.config.json"): void {
-  const fullPath = resolve(process.cwd(), configPath);
-  writeFileSync(fullPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+export function saveConfig(config: DigestConfig): void {
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
 }
 
 export function filterByRepo(repos: RepoConfig[], repoArg: string): RepoConfig[] {
@@ -75,7 +73,6 @@ const LAST_PERIODS: Record<string, number> = {
 export function parseLast(last: string): number {
   const key = last.toLowerCase().replace(/\s+/g, "");
   if (LAST_PERIODS[key] !== undefined) return LAST_PERIODS[key];
-  // support arbitrary Nd / Ndays
   const match = key.match(/^(\d+)d(ays?)?$/);
   if (match) return parseInt(match[1], 10);
   console.error(`Error: unrecognised --last value "${last}".`);

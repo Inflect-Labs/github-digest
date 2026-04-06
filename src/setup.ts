@@ -1,11 +1,8 @@
 import { input, password, confirm } from "@inquirer/prompts";
-import { writeFileSync, existsSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { writeFileSync, existsSync, readFileSync, mkdirSync } from "fs";
 import { Octokit } from "octokit";
 import { DigestConfig, RepoConfig } from "./types.js";
-
-const ENV_PATH = resolve(process.cwd(), ".env");
-const CONFIG_PATH = resolve(process.cwd(), "digest.config.json");
+import { GHD_DIR, CONFIG_PATH, ENV_PATH } from "./paths.js";
 
 // ─── First-time setup ────────────────────────────────────────────────────────
 
@@ -167,12 +164,13 @@ export async function promptToken(): Promise<{ token: string; octokit: Octokit }
 }
 
 function writeFiles(token: string, repos: RepoConfig[], existingConfig: DigestConfig | null) {
+  mkdirSync(GHD_DIR, { recursive: true });
   writeFileSync(ENV_PATH, `GITHUB_TOKEN=${token}\n`, { encoding: "utf-8", mode: 0o600 });
   saveConfig({ repos, defaults: existingConfig?.defaults ?? { daysBack: 14 } });
 
   console.log("\nSetup complete!");
-  console.log(`  Repos configured: ${repos.length}`);
-  console.log(`  .env and digest.config.json updated\n`);
+  console.log(`  Config: ${CONFIG_PATH}`);
+  console.log(`  Repos configured: ${repos.length}\n`);
   console.log("Next steps:");
   console.log("  ghd list             # view merged PRs");
   console.log("  ghd repos add        # add more repos");
@@ -180,6 +178,7 @@ function writeFiles(token: string, repos: RepoConfig[], existingConfig: DigestCo
 }
 
 function saveConfig(config: DigestConfig) {
+  mkdirSync(GHD_DIR, { recursive: true });
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
 }
 
