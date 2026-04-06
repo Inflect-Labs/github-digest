@@ -1,6 +1,6 @@
 # github-digest
 
-Generate client-facing sprint update documents from GitHub PRs. Point it at your repos, run it, get a polished markdown summary ready to share.
+Fetch and display merged PRs from your GitHub repos in the terminal.
 
 ## Installation
 
@@ -16,19 +16,15 @@ ghd setup
 
 ## Setup
 
-Run the setup wizard:
-
 ```bash
 ghd setup
 ```
 
 The wizard will:
-- Ask for your OpenRouter API key *(optional — only needed for `ghd run`)*
 - Ask for a GitHub token per org/account
 - Walk you through adding repos in `owner/repo` format
-- Let you set a display name for each repo (shown in the client document)
 
-You can re-run `ghd setup` at any time to add repos or update your keys.
+You can re-run `ghd setup` at any time to add repos or update your tokens.
 
 ### GitHub Token
 
@@ -47,39 +43,29 @@ You can re-run `ghd setup` at any time to add repos or update your keys.
 
 The wizard will validate the token live and check repo access before saving.
 
-### OpenRouter API Key *(optional)*
-
-Only required for `ghd run` (AI summaries). `ghd list` works without it.
-
-Get your key at: https://openrouter.ai/keys
-
 ## Usage
 
 ```bash
-# Last 14 days (uses defaults.daysBack from config)
-npm run digest
+# List merged PRs — last 14 days (default)
+ghd list
 
 # Custom date range
-npm run digest -- --since 2024-03-01 --until 2024-03-15
+ghd list --since 2024-03-01 --until 2024-03-15
 
-# Preview which PRs would be included (no AI call)
-npm run digest -- --dry-run
-
-# Custom output file
-npm run digest -- --output ./updates/march-sprint.md
+# Filter to a specific repo
+ghd list --repo podcast-buddy
+ghd list --repo Inflect-Labs/podcast-buddy --since 2026-03-23
 ```
 
-Output files are saved to `./output/digest-YYYY-MM-DD-to-YYYY-MM-DD.md` by default.
+## Repos
 
-## Workflow
+```bash
+# View configured repos
+ghd repos
 
-1. Run `--dry-run` first to confirm the right PRs are captured
-2. Run without `--dry-run` to generate the full AI summary
-3. Copy the markdown into your client update doc or share directly
-
-## Model
-
-Default model is `anthropic/claude-sonnet-4-5` via OpenRouter. Change the `model` field in `digest.config.json` to use any model available on OpenRouter (e.g., `openai/gpt-4o`, `anthropic/claude-opus-4`).
+# Remove a repo
+ghd repos remove
+```
 
 ## Releasing a New Version
 
@@ -87,12 +73,6 @@ Use the release script — it bumps `package.json`, commits, pushes, creates the
 
 ```bash
 npm run release -- 1.0.8 "What changed in this release"
-```
-
-Or run the script directly:
-
-```bash
-./scripts/release.sh 1.0.8 "What changed in this release"
 ```
 
 **What it does:**

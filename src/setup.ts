@@ -1,4 +1,4 @@
-import { password, confirm, select } from "@inquirer/prompts";
+import { input, password, confirm, select } from "@inquirer/prompts";
 import { writeFileSync, existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { Octokit } from "octokit";
@@ -15,36 +15,20 @@ export async function main() {
     ? (JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as DigestConfig)
     : null;
 
-  // --- OpenRouter Key ---
-  console.log("Step 1 of 2 — OpenRouter API key (optional)");
-  console.log("Required for AI summaries (ghd run). Skip if you only need ghd list.");
-  console.log("Get your key at: https://openrouter.ai/keys\n");
-
-  const existingOpenRouterKey = existingEnv["OPENROUTER_API_KEY"] ?? "";
-  let openrouterKey: string;
-
-  if (existingOpenRouterKey) {
-    const keep = await confirm({ message: "OpenRouter key already set. Keep it?", default: true });
-    openrouterKey = keep ? existingOpenRouterKey : await promptOpenRouterKey();
-  } else {
-    openrouterKey = await promptOpenRouterKey();
-  }
-
   // --- Repos + Tokens ---
-  console.log("\nStep 2 of 2 — Repositories & GitHub tokens");
+  console.log("Step 1 of 1 — Repositories & GitHub tokens");
   console.log("Add repos in owner/repo format (e.g. Inflect-Labs/github-digest)");
-  console.log("Each GitHub account or org needs its own fine-grained token.\n");
+  console.log("Each GitHub account or org needs its own classic PAT.\n");
 
   const repos: RepoConfig[] = existingConfig?.repos ? [...existingConfig.repos] : [];
 
   // tokenMap: envVarName -> token value (start from existing .env)
   const tokenMap: Record<string, string> = { ...existingEnv };
-  delete tokenMap["OPENROUTER_API_KEY"];
 
   if (repos.length > 0) {
     console.log("Current repos:");
     repos.forEach((r, i) =>
-      console.log(`  ${i + 1}. ${r.owner}/${r.repo} → "${r.displayName}" [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`)
+      console.log(`  ${i + 1}. ${r.owner}/${r.repo} [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`)
     );
     console.log("");
 
@@ -59,7 +43,7 @@ export async function main() {
 
     if (action === "replace") repos.length = 0;
     if (action === "keep") {
-      await writeFiles(openrouterKey, tokenMap, repos, existingConfig);
+      await writeFiles(tokenMap, repos, existingConfig);
       return;
     }
   }
@@ -157,28 +141,18 @@ export async function main() {
     process.exit(1);
   }
 
-  await writeFiles(openrouterKey, tokenMap, repos, existingConfig);
-}
-
-async function promptOpenRouterKey(): Promise<string> {
-  const key = await password({
-    message: "Paste your OpenRouter API key (leave blank to skip):",
-    mask: "*",
-  });
-  return key.trim();
+  await writeFiles(tokenMap, repos, existingConfig);
 }
 
 async function writeFiles(
-  openrouterKey: string,
   tokenMap: Record<string, string>,
   repos: RepoConfig[],
   existingConfig: DigestConfig | null
 ) {
-  // Write .env — all tokens + openrouter key (if set)
+  // Write .env — GitHub tokens only
   const envLines = Object.entries(tokenMap)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}=${v}`);
-  if (openrouterKey) envLines.push(`OPENROUTER_API_KEY=${openrouterKey}`);
   writeFileSync(ENV_PATH, envLines.join("\n") + "\n", { encoding: "utf-8", mode: 0o600 });
 
   // Write digest.config.json
@@ -186,7 +160,6 @@ async function writeFiles(
     repos,
     defaults: existingConfig?.defaults ?? { daysBack: 14 },
     output: existingConfig?.output ?? { dir: "./output" },
-    model: existingConfig?.model ?? "anthropic/claude-sonnet-4-5",
   };
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
 
@@ -196,8 +169,7 @@ async function writeFiles(
   console.log(`  GitHub tokens: ${[...uniqueTokens].join(", ")}`);
   console.log(`  .env and digest.config.json updated\n`);
   console.log("Run your first digest:");
-  console.log("  ghd list --dry-run    # preview PRs");
-  console.log("  ghd run               # generate AI summary\n");
+  console.log("  ghd list    # view merged PRs\n");
 }
 
 // Convert an owner name to a safe env var name, e.g. "Inflect-Labs" -> "GITHUB_TOKEN_INFLECT_LABS"
