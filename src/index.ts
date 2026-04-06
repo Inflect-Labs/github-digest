@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
-import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange } from "./config.js";
+import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange, parseLast } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
 import { checkForUpdate, uninstall } from "./update.js";
 
@@ -77,12 +77,14 @@ program
   .description("Show merged PRs for a date range")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
+  .option("--last <period>", "Shorthand period: day, 3d, week, fortnight, month")
   .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
   .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; repo?: string; config: string }) => {
+  .action(async (opts: { since?: string; until?: string; last?: string; repo?: string; config: string }) => {
     const config = loadConfig(opts.config);
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
-    const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
+    const daysBack = opts.last ? parseLast(opts.last) : config.defaults.daysBack;
+    const { since, until } = getDateRange(opts.since, opts.until, daysBack);
     const token = requireEnv("GITHUB_TOKEN");
 
     process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);

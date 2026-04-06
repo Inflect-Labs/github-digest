@@ -59,6 +59,30 @@ export function requireEnv(name: string): string {
   return value;
 }
 
+const LAST_PERIODS: Record<string, number> = {
+  day: 1,
+  "1d": 1,
+  "3d": 3,
+  "3days": 3,
+  week: 7,
+  "1w": 7,
+  "2w": 14,
+  fortnight: 14,
+  month: 30,
+  "30d": 30,
+};
+
+export function parseLast(last: string): number {
+  const key = last.toLowerCase().replace(/\s+/g, "");
+  if (LAST_PERIODS[key] !== undefined) return LAST_PERIODS[key];
+  // support arbitrary Nd / Ndays
+  const match = key.match(/^(\d+)d(ays?)?$/);
+  if (match) return parseInt(match[1], 10);
+  console.error(`Error: unrecognised --last value "${last}".`);
+  console.error(`  Supported: day, 3d, week, fortnight, month, or Nd (e.g. 5d)`);
+  process.exit(1);
+}
+
 export function getDateRange(
   sinceArg: string | undefined,
   untilArg: string | undefined,
