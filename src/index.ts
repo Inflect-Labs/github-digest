@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
-import { loadConfig, requireEnv, getDateRange, loadTokens } from "./config.js";
+import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange, loadTokens } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
 import { summarize } from "./summarize.js";
 import { buildDryRunOutput, buildDocument, writeOutput, defaultOutputPath } from "./output.js";
@@ -28,21 +28,68 @@ program
     await main();
   });
 
+// ─── ghd repos ───────────────────────────────────────────────────────────────
+const reposCmd = program
+  .command("repos")
+  .description("View and manage configured repos");
+
+reposCmd
+  .command("list", { isDefault: true })
+  .description("Show all configured repos")
+  .option("--config <path>", "Path to config file", "digest.config.json")
+  .action((opts: { config: string }) => {
+    const config = loadConfig(opts.config);
+    console.log(`\nConfigured repos (${config.repos.length}):\n`);
+    config.repos.forEach((r, i) => {
+      console.log(`  ${i + 1}. ${r.owner}/${r.repo}  [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`);
+    });
+    console.log("");
+  });
+
+reposCmd
+  .command("remove")
+  .description("Remove one or more configured repos")
+  .option("--config <path>", "Path to config file", "digest.config.json")
+  .action(async (opts: { config: string }) => {
+    const config = loadConfig(opts.config);
+    const { checkbox } = await import("@inquirer/prompts");
+
+    const toRemove = await checkbox({
+      message: "Select repos to remove:",
+      choices: config.repos.map((r) => ({
+        name: `${r.owner}/${r.repo}`,
+        value: `${r.owner}/${r.repo}`,
+      })),
+    });
+
+    if (toRemove.length === 0) {
+      console.log("Nothing removed.");
+      return;
+    }
+
+    config.repos = config.repos.filter((r) => !toRemove.includes(`${r.owner}/${r.repo}`));
+    saveConfig(config, opts.config);
+    console.log(`\nRemoved: ${toRemove.join(", ")}`);
+    console.log(`Remaining repos: ${config.repos.length}\n`);
+  });
+
 // ─── ghd list ────────────────────────────────────────────────────────────────
 program
   .command("list")
   .description("Show merged PRs and their details for a date range")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
+  .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
   .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; config: string }) => {
+  .action(async (opts: { since?: string; until?: string; repo?: string; config: string }) => {
     const config = loadConfig(opts.config);
+    const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
-    const tokens = loadTokens(config.repos);
+    const tokens = loadTokens(repos);
 
     process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);
 
-    const digests = await fetchMergedPRs(config.repos, since, until, tokens);
+    const digests = await fetchMergedPRs(repos, since, until, tokens);
     const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
 
     if (totalPRs === 0) {
@@ -98,17 +145,19 @@ program
   .description("Generate an AI sprint summary for a date range")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
+  .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
   .option("--output <path>", "Output file path")
   .option("--config <path>", "Path to config file", "digest.config.json")
-  .action(async (opts: { since?: string; until?: string; output?: string; config: string }) => {
+  .action(async (opts: { since?: string; until?: string; repo?: string; output?: string; config: string }) => {
     const config = loadConfig(opts.config);
+    const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
-    const tokens = loadTokens(config.repos);
+    const tokens = loadTokens(repos);
 
     process.stderr.write(`\nGitHub Digest — ${since} to ${until}\n`);
-    process.stderr.write(`Repos: ${config.repos.map((r) => r.displayName).join(", ")}\n\n`);
+    process.stderr.write(`Repos: ${repos.map((r) => r.displayName).join(", ")}\n\n`);
 
-    const digests = await fetchMergedPRs(config.repos, since, until, tokens);
+    const digests = await fetchMergedPRs(repos, since, until, tokens);
 
     const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
     if (totalPRs === 0) {
@@ -139,9 +188,9 @@ program
     await uninstall();
   });
 
-// ─── update check (skipped for uninstall/setup to avoid noise) ───────────────
+// ─── update check (skipped for uninstall/setup/repos to avoid noise) ─────────
 const command = process.argv[2];
-if (command !== "uninstall" && command !== "setup") {
+if (command !== "uninstall" && command !== "setup" && command !== "repos") {
   await checkForUpdate();
 }
 

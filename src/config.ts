@@ -1,6 +1,6 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
-import { DigestConfig } from "./types.js";
+import { DigestConfig, RepoConfig } from "./types.js";
 
 export function loadConfig(configPath = "digest.config.json"): DigestConfig {
   const fullPath = resolve(process.cwd(), configPath);
@@ -34,6 +34,26 @@ export function loadConfig(configPath = "digest.config.json"): DigestConfig {
   }
 
   return config;
+}
+
+export function saveConfig(config: DigestConfig, configPath = "digest.config.json"): void {
+  const fullPath = resolve(process.cwd(), configPath);
+  writeFileSync(fullPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+}
+
+export function filterByRepo(repos: RepoConfig[], repoArg: string): RepoConfig[] {
+  const lower = repoArg.toLowerCase();
+  const filtered = repos.filter(
+    (r) =>
+      r.repo.toLowerCase() === lower ||
+      `${r.owner}/${r.repo}`.toLowerCase() === lower
+  );
+  if (filtered.length === 0) {
+    console.error(`Error: no configured repo matches "${repoArg}".`);
+    console.error(`Configured repos: ${repos.map((r) => `${r.owner}/${r.repo}`).join(", ")}`);
+    process.exit(1);
+  }
+  return filtered;
 }
 
 export function requireEnv(name: string): string {
