@@ -15,21 +15,31 @@ export async function main() {
     ? (JSON.parse(readFileSync(CONFIG_PATH, "utf-8")) as DigestConfig)
     : null;
 
-  // --- Repos + Tokens ---
-  console.log("Step 1 of 1 — Repositories & GitHub tokens");
-  console.log("Add repos in owner/repo format (e.g. Inflect-Labs/github-digest)");
-  console.log("Each GitHub account or org needs its own classic PAT.\n");
+  // --- GitHub Token ---
+  let token: string;
+  let octokit: Octokit;
+
+  const existingToken = existingEnv["GITHUB_TOKEN"] ?? "";
+  if (existingToken) {
+    const keep = await confirm({ message: "GitHub token already set. Keep it?", default: true });
+    if (keep) {
+      token = existingToken;
+      octokit = new Octokit({ auth: token });
+    } else {
+      ({ token, octokit } = await promptToken());
+    }
+  } else {
+    ({ token, octokit } = await promptToken());
+  }
+
+  // --- Repos ---
+  console.log("\nAdd repos in owner/repo format (e.g. Inflect-Labs/github-digest)\n");
 
   const repos: RepoConfig[] = existingConfig?.repos ? [...existingConfig.repos] : [];
 
-  // tokenMap: envVarName -> token value (start from existing .env)
-  const tokenMap: Record<string, string> = { ...existingEnv };
-
   if (repos.length > 0) {
     console.log("Current repos:");
-    repos.forEach((r, i) =>
-      console.log(`  ${i + 1}. ${r.owner}/${r.repo} [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`)
-    );
+    repos.forEach((r, i) => console.log(`  ${i + 1}. ${r.owner}/${r.repo}`));
     console.log("");
 
     const action = await select({
@@ -43,22 +53,8 @@ export async function main() {
 
     if (action === "replace") repos.length = 0;
     if (action === "keep") {
-      await writeFiles(tokenMap, repos, existingConfig);
+      writeFiles(token, repos, existingConfig);
       return;
-    }
-  }
-
-  // ownerTokenCache: owner -> { envVarName, octokit } — avoid re-asking for same owner
-  const ownerTokenCache: Record<string, { envVarName: string; octokit: Octokit }> = {};
-
-  // Pre-populate cache from existing repos
-  for (const repo of repos) {
-    const envVar = repo.tokenEnvVar ?? "GITHUB_TOKEN";
-    if (tokenMap[envVar] && !ownerTokenCache[repo.owner]) {
-      ownerTokenCache[repo.owner] = {
-        envVarName: envVar,
-        octokit: new Octokit({ auth: tokenMap[envVar] }),
-      };
     }
   }
 
@@ -76,50 +72,6 @@ export async function main() {
 
     const [owner, repoName] = repoInput.trim().split("/");
 
-    // Get or create token for this owner
-    if (!ownerTokenCache[owner]) {
-      const envVarName = toEnvVarName(owner);
-      console.log(`\n  ┌─ GitHub token needed for: ${owner} ${"─".repeat(Math.max(0, 40 - owner.length))}┐`);
-      console.log(`  │`);
-      console.log(`  │  1. Open this URL in your browser:`);
-      console.log(`  │     https://github.com/settings/tokens/new?scopes=repo`);
-      console.log(`  │`);
-      console.log(`  │  2. Fill in the form:`);
-      console.log(`  │     • Note:       ghd-${owner}`);
-      console.log(`  │     • Expiration: No expiration (or your preferred period)`);
-      console.log(`  │     • Scopes:     ✅ repo  (everything else unchecked)`);
-      console.log(`  │`);
-      console.log(`  │  3. Click "Generate token" and paste it below.`);
-      console.log(`  │`);
-      console.log(`  │  Why classic PAT? Fine-grained tokens for org repos require`);
-      console.log(`  │  org owner approval — classic tokens work immediately.`);
-      console.log(`  └${"─".repeat(55)}┘\n`);
-
-      let token = await password({
-        message: `  GitHub token for ${owner}:`,
-        mask: "*",
-        validate: (v) => v.trim().length > 0 || "Token cannot be empty",
-      });
-      token = token.trim();
-
-      process.stdout.write(`  Validating...`);
-      const octokit = new Octokit({ auth: token });
-      try {
-        await octokit.rest.users.getAuthenticated();
-        console.log(` ok\n`);
-      } catch {
-        console.log(` failed — token may be invalid or expired\n`);
-        const skip = await confirm({ message: "  Continue anyway?", default: false });
-        if (!skip) continue;
-      }
-
-      tokenMap[envVarName] = token;
-      ownerTokenCache[owner] = { envVarName, octokit };
-    }
-
-    const { octokit, envVarName } = ownerTokenCache[owner];
-
-    // Validate repo exists
     process.stdout.write(`  Checking ${owner}/${repoName}...`);
     try {
       await octokit.rest.repos.get({ owner, repo: repoName });
@@ -130,7 +82,7 @@ export async function main() {
       if (skip) continue;
     }
 
-    repos.push({ owner, repo: repoName, displayName: repoName, tokenEnvVar: envVarName });
+    repos.push({ owner, repo: repoName });
     console.log("");
 
     addingRepos = await confirm({ message: "Add another repo?", default: true });
@@ -141,40 +93,61 @@ export async function main() {
     process.exit(1);
   }
 
-  await writeFiles(tokenMap, repos, existingConfig);
+  writeFiles(token, repos, existingConfig);
 }
 
-async function writeFiles(
-  tokenMap: Record<string, string>,
-  repos: RepoConfig[],
-  existingConfig: DigestConfig | null
-) {
-  // Write .env — GitHub tokens only
-  const envLines = Object.entries(tokenMap)
-    .filter(([, v]) => v)
-    .map(([k, v]) => `${k}=${v}`);
-  writeFileSync(ENV_PATH, envLines.join("\n") + "\n", { encoding: "utf-8", mode: 0o600 });
+async function promptToken(): Promise<{ token: string; octokit: Octokit }> {
+  console.log("  ┌─ GitHub token needed ──────────────────────────────────────┐");
+  console.log("  │");
+  console.log("  │  1. Open this URL in your browser:");
+  console.log("  │     https://github.com/settings/tokens/new?scopes=repo");
+  console.log("  │");
+  console.log("  │  2. Fill in the form:");
+  console.log("  │     • Note:       ghd");
+  console.log("  │     • Expiration: No expiration (or your preferred period)");
+  console.log("  │     • Scopes:     ✅ repo  (everything else unchecked)");
+  console.log("  │");
+  console.log("  │  3. Click \"Generate token\" and paste it below.");
+  console.log("  │");
+  console.log("  │  Why classic PAT? Fine-grained tokens for org repos require");
+  console.log("  │  org owner approval — classic tokens work immediately.");
+  console.log("  └────────────────────────────────────────────────────────────┘\n");
 
-  // Write digest.config.json
+  let token = await password({
+    message: "  GitHub token:",
+    mask: "*",
+    validate: (v) => v.trim().length > 0 || "Token cannot be empty",
+  });
+  token = token.trim();
+
+  process.stdout.write("  Validating...");
+  const octokit = new Octokit({ auth: token });
+  try {
+    await octokit.rest.users.getAuthenticated();
+    console.log(" ok\n");
+  } catch {
+    console.log(" failed — token may be invalid or expired\n");
+    const proceed = await confirm({ message: "  Continue anyway?", default: false });
+    if (!proceed) process.exit(1);
+  }
+
+  return { token, octokit };
+}
+
+function writeFiles(token: string, repos: RepoConfig[], existingConfig: DigestConfig | null) {
+  writeFileSync(ENV_PATH, `GITHUB_TOKEN=${token}\n`, { encoding: "utf-8", mode: 0o600 });
+
   const config: DigestConfig = {
     repos,
     defaults: existingConfig?.defaults ?? { daysBack: 14 },
-    output: existingConfig?.output ?? { dir: "./output" },
   };
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
 
   console.log("\nSetup complete!");
   console.log(`  Repos configured: ${repos.length}`);
-  const uniqueTokens = new Set(repos.map((r) => r.tokenEnvVar ?? "GITHUB_TOKEN"));
-  console.log(`  GitHub tokens: ${[...uniqueTokens].join(", ")}`);
   console.log(`  .env and digest.config.json updated\n`);
   console.log("Run your first digest:");
   console.log("  ghd list    # view merged PRs\n");
-}
-
-// Convert an owner name to a safe env var name, e.g. "Inflect-Labs" -> "GITHUB_TOKEN_INFLECT_LABS"
-function toEnvVarName(owner: string): string {
-  return "GITHUB_TOKEN_" + owner.toUpperCase().replace(/[^A-Z0-9]/g, "_");
 }
 
 function parseEnvFile(): Record<string, string> {

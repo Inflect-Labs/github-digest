@@ -8,26 +8,17 @@ export async function fetchMergedPRs(
   repos: RepoConfig[],
   since: string,
   until: string,
-  tokens: Record<string, string> // map of envVarName -> token value
+  token: string
 ): Promise<RepoDigest[]> {
   const sinceDate = new Date(since);
   const untilDate = new Date(until);
   untilDate.setHours(23, 59, 59, 999);
 
-  const results = await Promise.all(
-    repos.map((repo) => {
-      const tokenEnvVar = repo.tokenEnvVar ?? "GITHUB_TOKEN";
-      const token = tokens[tokenEnvVar];
-      if (!token) {
-        console.error(`Error: Missing token for ${repo.owner}/${repo.repo}. Expected env var: ${tokenEnvVar}`);
-        process.exit(1);
-      }
-      const octokit = new Octokit({ auth: token });
-      return fetchRepoDigest(octokit, repo, sinceDate, untilDate);
-    })
-  );
+  const octokit = new Octokit({ auth: token });
 
-  return results;
+  return Promise.all(
+    repos.map((repo) => fetchRepoDigest(octokit, repo, sinceDate, untilDate))
+  );
 }
 
 async function fetchRepoDigest(
@@ -36,13 +27,11 @@ async function fetchRepoDigest(
   since: Date,
   until: Date
 ): Promise<RepoDigest> {
-  const { owner, repo, displayName } = repoConfig;
+  const { owner, repo } = repoConfig;
   process.stderr.write(`Fetching PRs for ${owner}/${repo}...`);
 
   const mergedPRs: PRData[] = [];
 
-  // Paginate through closed PRs sorted by updated desc
-  // Stop early once we go past the since date
   for await (const response of octokit.paginate.iterator(octokit.rest.pulls.list, {
     owner,
     repo,
@@ -54,12 +43,10 @@ async function fetchRepoDigest(
     let pastWindow = false;
 
     for (const pr of response.data) {
-      // Only care about merged PRs
       if (!pr.merged_at) continue;
 
       const mergedAt = new Date(pr.merged_at);
 
-      // Stop paginating once updates are older than our since date
       if (new Date(pr.updated_at) < since) {
         pastWindow = true;
         break;
@@ -76,7 +63,7 @@ async function fetchRepoDigest(
 
   process.stderr.write(` ${mergedPRs.length} merged PR${mergedPRs.length !== 1 ? "s" : ""}\n`);
 
-  return { owner, repo, displayName, prs: mergedPRs };
+  return { owner, repo, prs: mergedPRs };
 }
 
 async function fetchPRDetails(
@@ -109,7 +96,7 @@ async function fetchPRDetails(
 
   const commits: PRCommit[] = commitsResponse.data.slice(0, MAX_COMMITS_PER_PR).map((c) => ({
     sha: c.sha.slice(0, 7),
-    message: c.commit.message.split("\n")[0], // first line only
+    message: c.commit.message.split("\n")[0],
     author: c.commit.author?.name ?? c.author?.login ?? "unknown",
   }));
 

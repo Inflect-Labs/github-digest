@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
-import { loadConfig, saveConfig, filterByRepo, getDateRange, loadTokens } from "./config.js";
+import { loadConfig, saveConfig, filterByRepo, requireEnv, getDateRange } from "./config.js";
 import { fetchMergedPRs } from "./github.js";
 import { checkForUpdate, uninstall } from "./update.js";
 
@@ -20,7 +20,7 @@ program
 // ─── ghd setup ───────────────────────────────────────────────────────────────
 program
   .command("setup")
-  .description("Interactive setup — configure repos and API keys")
+  .description("Interactive setup — configure repos and GitHub token")
   .action(async () => {
     const { main } = await import("./setup.js");
     await main();
@@ -39,7 +39,7 @@ reposCmd
     const config = loadConfig(opts.config);
     console.log(`\nConfigured repos (${config.repos.length}):\n`);
     config.repos.forEach((r, i) => {
-      console.log(`  ${i + 1}. ${r.owner}/${r.repo}  [${r.tokenEnvVar ?? "GITHUB_TOKEN"}]`);
+      console.log(`  ${i + 1}. ${r.owner}/${r.repo}`);
     });
     console.log("");
   });
@@ -74,7 +74,7 @@ reposCmd
 // ─── ghd list ────────────────────────────────────────────────────────────────
 program
   .command("list")
-  .description("Show merged PRs and their details for a date range")
+  .description("Show merged PRs for a date range")
   .option("--since <date>", "Start date (YYYY-MM-DD)")
   .option("--until <date>", "End date (YYYY-MM-DD)")
   .option("--repo <name>", "Filter to a single repo (e.g. podcast-buddy or Inflect-Labs/podcast-buddy)")
@@ -83,11 +83,11 @@ program
     const config = loadConfig(opts.config);
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const { since, until } = getDateRange(opts.since, opts.until, config.defaults.daysBack);
-    const tokens = loadTokens(repos);
+    const token = requireEnv("GITHUB_TOKEN");
 
     process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);
 
-    const digests = await fetchMergedPRs(repos, since, until, tokens);
+    const digests = await fetchMergedPRs(repos, since, until, token);
     const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
 
     if (totalPRs === 0) {
@@ -96,7 +96,7 @@ program
     }
 
     for (const digest of digests) {
-      const header = `${digest.displayName} (${digest.owner}/${digest.repo})`;
+      const header = `${digest.owner}/${digest.repo}`;
       console.log(`\n${"─".repeat(header.length)}`);
       console.log(header);
       console.log(`${"─".repeat(header.length)}`);

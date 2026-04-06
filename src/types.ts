@@ -1,8 +1,6 @@
 export interface RepoConfig {
   owner: string;
   repo: string;
-  displayName: string;
-  tokenEnvVar?: string; // env var name for this repo's GitHub token, e.g. "GITHUB_TOKEN_INFLECT"
 }
 
 export interface DigestConfig {
@@ -10,10 +8,6 @@ export interface DigestConfig {
   defaults: {
     daysBack: number;
   };
-  output: {
-    dir: string;
-  };
-  model?: string;
 }
 
 export interface PRFile {
@@ -45,13 +39,5 @@ export interface PRData {
 export interface RepoDigest {
   owner: string;
   repo: string;
-  displayName: string;
   prs: PRData[];
-}
-
-export interface RunOptions {
-  since: string;
-  until: string;
-  outputPath?: string;
-  dryRun: boolean;
 }
