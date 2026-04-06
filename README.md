@@ -16,25 +16,42 @@ ghd setup
 
 ## Setup
 
-**1. Install dependencies**
+Run the setup wizard:
 
 ```bash
-npm install
-```
-
-**2. Run the setup wizard**
-
-```bash
-npm run setup
+ghd setup
 ```
 
 The wizard will:
-- Ask for your GitHub token (validates it live)
-- Ask for your OpenRouter API key
-- Walk you through adding repos in `owner/repo` format (e.g. `Inflect-Labs/github-digest`)
+- Ask for your OpenRouter API key *(optional — only needed for `ghd run`)*
+- Ask for a GitHub token per org/account
+- Walk you through adding repos in `owner/repo` format
 - Let you set a display name for each repo (shown in the client document)
 
-You can re-run `npm run setup` at any time to add repos or update your keys.
+You can re-run `ghd setup` at any time to add repos or update your keys.
+
+### GitHub Token
+
+`ghd` needs a **classic personal access token** with the `repo` scope to read pull requests.
+
+> **Why classic?** Fine-grained tokens for org repos require org owner approval. Classic tokens work immediately.
+
+**Steps:**
+
+1. Go to: https://github.com/settings/tokens/new?scopes=repo
+2. Fill in:
+   - **Note:** `ghd-<your-org>` (e.g. `ghd-Inflect-Labs`)
+   - **Expiration:** No expiration *(or your preferred period)*
+   - **Scopes:** ✅ `repo` — everything else unchecked
+3. Click **Generate token** and paste it into `ghd setup` when prompted
+
+The wizard will validate the token live and check repo access before saving.
+
+### OpenRouter API Key *(optional)*
+
+Only required for `ghd run` (AI summaries). `ghd list` works without it.
+
+Get your key at: https://openrouter.ai/keys
 
 ## Usage
 

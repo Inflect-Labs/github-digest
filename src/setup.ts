@@ -95,9 +95,21 @@ export async function main() {
     // Get or create token for this owner
     if (!ownerTokenCache[owner]) {
       const envVarName = toEnvVarName(owner);
-      console.log(`\n  New account/org detected: ${owner}`);
-      console.log(`  Create a classic token at: https://github.com/settings/tokens/new?scopes=repo`);
-      console.log(`  (Classic tokens work for org repos without needing org approval.)\n`);
+      console.log(`\n  ┌─ GitHub token needed for: ${owner} ${"─".repeat(Math.max(0, 40 - owner.length))}┐`);
+      console.log(`  │`);
+      console.log(`  │  1. Open this URL in your browser:`);
+      console.log(`  │     https://github.com/settings/tokens/new?scopes=repo`);
+      console.log(`  │`);
+      console.log(`  │  2. Fill in the form:`);
+      console.log(`  │     • Note:       ghd-${owner}`);
+      console.log(`  │     • Expiration: No expiration (or your preferred period)`);
+      console.log(`  │     • Scopes:     ✅ repo  (everything else unchecked)`);
+      console.log(`  │`);
+      console.log(`  │  3. Click "Generate token" and paste it below.`);
+      console.log(`  │`);
+      console.log(`  │  Why classic PAT? Fine-grained tokens for org repos require`);
+      console.log(`  │  org owner approval — classic tokens work immediately.`);
+      console.log(`  └${"─".repeat(55)}┘\n`);
 
       let token = await password({
         message: `  GitHub token for ${owner}:`,
