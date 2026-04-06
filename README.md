@@ -2,6 +2,18 @@
 
 Generate client-facing sprint update documents from GitHub PRs. Point it at your repos, run it, get a polished markdown summary ready to share.
 
+## Installation
+
+```sh
+curl -fsSL https://github-digest-amber.vercel.app/api/install | sh
+```
+
+Then run the setup wizard:
+
+```sh
+ghd setup
+```
+
 ## Setup
 
 **1. Install dependencies**
@@ -51,3 +63,18 @@ Output files are saved to `./output/digest-YYYY-MM-DD-to-YYYY-MM-DD.md` by defau
 ## Model
 
 Default model is `anthropic/claude-sonnet-4-5` via OpenRouter. Change the `model` field in `digest.config.json` to use any model available on OpenRouter (e.g., `openai/gpt-4o`, `anthropic/claude-opus-4`).
+
+## Releasing a New Version
+
+The install script always pulls the latest GitHub Release. To ship a new version:
+
+1. Bump the version in `package.json`
+2. Commit: `git commit -m "chore: bump version to vX.Y.Z"`
+3. Push to main: `git push origin main`
+4. Create a GitHub Release:
+   ```bash
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes "What changed"
+   ```
+   GitHub automatically attaches a source tarball. The install script picks it up on the next install.
+
+> You can also ask Claude: "create a GitHub release for vX.Y.Z" and it will run the `gh release create` command for you.
