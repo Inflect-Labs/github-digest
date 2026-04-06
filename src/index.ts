@@ -117,8 +117,8 @@ program
         }
 
         if (pr.body?.trim()) {
-          const preview = pr.body.trim().replace(/\r?\n/g, " ").slice(0, 200);
-          console.log(`  "${preview}${pr.body.trim().length > 200 ? "…" : ""}"`);
+          const lines = pr.body.trim().split(/\r?\n/);
+          lines.forEach((line) => console.log(`  ${line}`));
         }
 
         if (pr.commits.length > 0) {
