@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Ensure Homebrew and common node bin paths are available
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH"
+
 # Usage: ./scripts/release.sh <version> ["release notes"]
 # Example: ./scripts/release.sh 1.0.8 "Fix update prompt, improve token UX"
 
