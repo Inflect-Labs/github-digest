@@ -48,11 +48,11 @@ reposCmd
   });
 
 reposCmd
-  .command("add")
-  .description("Add one or more repos")
-  .action(async () => {
+  .command("add [repo]")
+  .description("Add a repo (e.g. owner/repo), or run interactively if no argument given")
+  .action(async (repo?: string) => {
     const { addRepos } = await import("./setup.js");
-    await addRepos();
+    await addRepos(repo);
   });
 
 reposCmd

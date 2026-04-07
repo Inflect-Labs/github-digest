@@ -51,7 +51,7 @@ export async function main() {
 
 // ─── ghd repos add ───────────────────────────────────────────────────────────
 
-export async function addRepos() {
+export async function addRepos(repoArg?: string) {
   const existingEnv = parseEnvFile();
   const existingConfig = loadExistingConfig();
 
@@ -63,6 +63,34 @@ export async function addRepos() {
 
   const octokit = new Octokit({ auth: token });
   const repos: RepoConfig[] = existingConfig?.repos ? [...existingConfig.repos] : [];
+
+  if (repoArg) {
+    const parts = repoArg.trim().split("/");
+    if (parts.length !== 2 || !parts[0].length || !parts[1].length) {
+      console.error(`Invalid format: "${repoArg}". Use owner/repo, e.g. Inflect-Labs/github-digest`);
+      process.exit(1);
+    }
+    const [owner, repo] = parts;
+    const alreadyExists = repos.some(
+      (r) => `${r.owner}/${r.repo}`.toLowerCase() === repoArg.trim().toLowerCase()
+    );
+    if (alreadyExists) {
+      console.error(`${owner}/${repo} is already configured.`);
+      process.exit(1);
+    }
+    process.stdout.write(`Checking ${owner}/${repo}...`);
+    try {
+      await octokit.rest.repos.get({ owner, repo });
+      console.log(" found");
+    } catch {
+      console.log(" not found or no access");
+      process.exit(1);
+    }
+    repos.push({ owner, repo });
+    saveConfig({ repos, defaults: existingConfig?.defaults ?? { daysBack: 14 } });
+    console.log(`Added ${owner}/${repo}. Total repos: ${repos.length}`);
+    return;
+  }
 
   if (repos.length > 0) {
     console.log(`\nCurrent repos:`);
