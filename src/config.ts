@@ -84,17 +84,31 @@ export function getDateRange(
   sinceArg: string | undefined,
   untilArg: string | undefined,
   daysBack: number
-): { since: string; until: string } {
-  const until = untilArg ?? new Date().toISOString().split("T")[0];
-  let since: string;
+): { since: string; until: string; sinceExact: Date; untilExact: Date } {
+  const nowMs = Date.now();
 
+  // Display strings (YYYY-MM-DD)
+  const until = untilArg ?? new Date(nowMs).toISOString().split("T")[0];
+
+  let since: string;
   if (sinceArg) {
     since = sinceArg;
   } else {
-    const d = new Date(until);
-    d.setDate(d.getDate() - daysBack);
-    since = d.toISOString().split("T")[0];
+    // Exactly N days before now, not before start-of-today.
+    since = new Date(nowMs - daysBack * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
   }
 
-  return { since, until };
+  // Exact Date boundaries used for filtering.
+  // When explicit date strings are given, treat them as UTC day boundaries.
+  const sinceExact = sinceArg
+    ? (() => { const d = new Date(sinceArg); d.setUTCHours(0, 0, 0, 0); return d; })()
+    : new Date(nowMs - daysBack * 24 * 60 * 60 * 1000);
+
+  const untilExact = untilArg
+    ? (() => { const d = new Date(untilArg); d.setUTCHours(23, 59, 59, 999); return d; })()
+    : new Date(nowMs);
+
+  return { since, until, sinceExact, untilExact };
 }

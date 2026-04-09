@@ -94,12 +94,12 @@ program
     const config = loadConfig();
     const repos = opts.repo ? filterByRepo(config.repos, opts.repo) : config.repos;
     const daysBack = opts.last ? parseLast(opts.last) : config.defaults.daysBack;
-    const { since, until } = getDateRange(opts.since, opts.until, daysBack);
+    const { since, until, sinceExact, untilExact } = getDateRange(opts.since, opts.until, daysBack);
     const token = requireEnv("GITHUB_TOKEN");
 
     process.stderr.write(`\nFetching PRs — ${since} to ${until}\n\n`);
 
-    const digests = await fetchMergedPRs(repos, since, until, token);
+    const digests = await fetchMergedPRs(repos, sinceExact, untilExact, token);
     const totalPRs = digests.reduce((sum, d) => sum + d.prs.length, 0);
 
     if (totalPRs === 0) {
