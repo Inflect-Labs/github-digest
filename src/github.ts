@@ -6,18 +6,14 @@ const MAX_COMMITS_PER_PR = 30;
 
 export async function fetchMergedPRs(
   repos: RepoConfig[],
-  since: string,
-  until: string,
+  sinceExact: Date,
+  untilExact: Date,
   token: string
 ): Promise<RepoDigest[]> {
-  const sinceDate = new Date(since);
-  const untilDate = new Date(until);
-  untilDate.setHours(23, 59, 59, 999);
-
   const octokit = new Octokit({ auth: token });
 
   return Promise.all(
-    repos.map((repo) => fetchRepoDigest(octokit, repo, sinceDate, untilDate))
+    repos.map((repo) => fetchRepoDigest(octokit, repo, sinceExact, untilExact))
   );
 }
 
